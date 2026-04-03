@@ -1,4 +1,4 @@
-# Bright Code — Agent Tools
+# Bright Code — Full Terminal UI Clone
 
 This project is a Bright Code-style CLI clone built with React + Ink + TypeScript, with a complete terminal UI (TUI).
 
