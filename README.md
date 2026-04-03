@@ -1,6 +1,6 @@
-# Bright Code — Full Terminal UI Clone
+# Bright Code — Terminal UI
 
-This project is a Bright Code-style CLI clone built with React + Ink + TypeScript, with a complete terminal UI (TUI).
+This project is a Bright Code-style CLI built with React + Ink + TypeScript, with a complete terminal UI (TUI).
 
 ## Quick Start
 
