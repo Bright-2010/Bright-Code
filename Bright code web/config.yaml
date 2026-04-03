@@ -1,7 +1,0 @@
-provider:
-  apiKey: "sk-"
-  baseUrl: ""
-  model: ""
-skills:
-  enabled: "true"
-  directory: "./skills"
