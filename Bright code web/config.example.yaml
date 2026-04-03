@@ -1,0 +1,12 @@
+# You can also use top-level keys directly (apiKey/baseUrl/model).
+# This nested provider style is recommended.
+provider:
+  apiKey: "sk-xxx"
+  baseUrl: "https://api.moonshot.cn/v1"
+  model: "moonshot-v1-8k"
+
+skills:
+  enabled: "true"
+  directory: "./skills"
+  # Optional: comma-separated list. Empty means load all skill files in directory.
+  # include: "general-coding,code-review.md"
