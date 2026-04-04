@@ -1,9 +1,25 @@
-# You can also use top-level keys directly (apiKey/baseUrl/model).
-# This nested provider style is recommended.
+# OpenAI-compatible provider configuration.
+# You can also place these keys at top-level (without provider:), but nested is recommended.
 provider:
   apiKey: "sk-xxx"
   baseUrl: "https://api.moonshot.cn/v1"
   model: "moonshot-v1-8k"
+
+  # Optional: endpoint path or full URL.
+  # endpoint: "/chat/completions"
+
+  # Optional: token field compatibility (some providers use max_completion_tokens).
+  # maxTokens: "4096"
+  # maxTokensParam: "max_tokens"
+
+  # Optional: auth customization.
+  # apiKeyHeader: "Authorization"
+  # apiKeyPrefix: "Bearer "
+  # apiKeyQueryParam: "key"
+
+  # Optional: extra headers/body fields for provider-specific compatibility.
+  # extraHeaders: "HTTP-Referer=https://your.site,X-Title=Bright Code"
+  # extraBody: "temperature=0.7,top_p=0.95"
 
 skills:
   enabled: "true"

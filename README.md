@@ -1,6 +1,6 @@
-# Bright Code — Terminal UI
+# Bright Code — Full Terminal UI Clone
 
-This project is a Bright Code-style CLI built with React + Ink + TypeScript, with a complete terminal UI (TUI).
+This project is a Bright Code-style CLI clone built with React + Ink + TypeScript, with a complete terminal UI (TUI).
 
 ## Quick Start
 
@@ -19,19 +19,47 @@ npm run dev
 npm run build && npm start
 ```
 
-Example `config.yaml`:
+## OpenAI-Compatible Provider Config
+
+This project now targets **OpenAI-compatible APIs only**.
+
+Minimal config:
 
 ```yaml
 provider:
   apiKey: "sk-xxx"
   baseUrl: "https://api.moonshot.cn/v1"
   model: "moonshot-v1-8k"
+```
+
+Extended config (for better compatibility across providers):
+
+```yaml
+provider:
+  apiKey: "sk-xxx"
+  baseUrl: "https://your-provider.example/v1"
+  model: "your-model"
+  endpoint: "/chat/completions"
+  maxTokens: "4096"
+  maxTokensParam: "max_tokens"
+  apiKeyHeader: "Authorization"
+  apiKeyPrefix: "Bearer "
+  apiKeyQueryParam: ""
+  extraHeaders: "HTTP-Referer=https://your.site,X-Title=Bright Code"
+  extraBody: "temperature=0.7,top_p=0.95"
 
 skills:
   enabled: "true"
   directory: "./skills"
   # include: "general-coding,code-review.md"
 ```
+
+Field notes:
+
+- `provider.endpoint`: can be `/chat/completions`, `chat/completions`, or a full URL.
+- `provider.maxTokensParam`: use `max_tokens` or `max_completion_tokens` depending on provider.
+- `provider.apiKeyQueryParam`: if set (e.g. `key`), API key goes in query string instead of auth header.
+- `provider.extraHeaders` / `provider.extraBody`: comma-separated `key=value` pairs.
 
 ## Skill Configuration (Generic)
 

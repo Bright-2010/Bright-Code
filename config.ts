@@ -2,9 +2,19 @@ import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
 
 export interface AppConfig {
-  apiKey: string
-  baseUrl: string
-  model: string
+  provider: {
+    apiKey: string
+    baseUrl: string
+    model: string
+    endpoint: string
+    maxTokens: number
+    maxTokensParam: string
+    apiKeyHeader: string
+    apiKeyPrefix: string
+    apiKeyQueryParam: string
+    extraHeaders: Record<string, string>
+    extraBody: Record<string, string>
+  }
   skills: {
     enabled: boolean
     directory: string
@@ -92,6 +102,34 @@ function parseCsv(value: unknown): string[] {
     .filter(Boolean)
 }
 
+function parseNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function parseKeyValueMap(value: unknown): Record<string, string> {
+  if (typeof value !== 'string') return {}
+
+  const out: Record<string, string> = {}
+  for (const pair of value.split(',')) {
+    const trimmed = pair.trim()
+    if (!trimmed) continue
+
+    const idx = trimmed.indexOf('=')
+    if (idx <= 0) continue
+
+    const key = trimmed.slice(0, idx).trim()
+    const val = trimmed.slice(idx + 1).trim()
+    if (!key || !val) continue
+
+    out[key] = val
+  }
+
+  return out
+}
+
 export function loadConfig(): AppConfig {
   if (cachedConfig) return cachedConfig
 
@@ -108,9 +146,28 @@ export function loadConfig(): AppConfig {
   const skillsConfig = getObject(parsed.skills)
 
   cachedConfig = {
-    apiKey: assertString(provider.apiKey, 'provider.apiKey'),
-    baseUrl: assertString(provider.baseUrl, 'provider.baseUrl'),
-    model: assertString(provider.model, 'provider.model'),
+    provider: {
+      apiKey: assertString(provider.apiKey, 'provider.apiKey'),
+      baseUrl: assertString(provider.baseUrl, 'provider.baseUrl'),
+      model: assertString(provider.model, 'provider.model'),
+      endpoint:
+        (typeof provider.endpoint === 'string' && provider.endpoint.trim()) ||
+        '/chat/completions',
+      maxTokens: parseNumber(provider.maxTokens, 4096),
+      maxTokensParam:
+        (typeof provider.maxTokensParam === 'string' && provider.maxTokensParam.trim()) ||
+        'max_tokens',
+      apiKeyHeader:
+        (typeof provider.apiKeyHeader === 'string' && provider.apiKeyHeader.trim()) ||
+        'Authorization',
+      apiKeyPrefix:
+        typeof provider.apiKeyPrefix === 'string' ? provider.apiKeyPrefix : 'Bearer ',
+      apiKeyQueryParam:
+        (typeof provider.apiKeyQueryParam === 'string' && provider.apiKeyQueryParam.trim()) ||
+        '',
+      extraHeaders: parseKeyValueMap(provider.extraHeaders),
+      extraBody: parseKeyValueMap(provider.extraBody),
+    },
     skills: {
       enabled: parseBoolean(skillsConfig?.enabled, false),
       directory:

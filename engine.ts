@@ -34,6 +34,87 @@ type QueryCallbacks = {
   onError: (text: string) => void
 }
 
+function inferProviderName(baseUrl: string): string {
+  const normalized = baseUrl.toLowerCase()
+  if (normalized.includes('moonshot') || normalized.includes('kimi')) return 'Kimi'
+  if (normalized.includes('generativelanguage.googleapis.com')) return 'Gemini'
+  if (normalized.includes('openai.com')) return 'OpenAI-compatible API'
+  return 'OpenAI-compatible provider'
+}
+
+function resolveEndpoint(baseUrl: string, endpoint: string): string {
+  const base = baseUrl.trim().replace(/\/+$/, '')
+  const ep = endpoint.trim()
+
+  if (!base) return ep || '/chat/completions'
+  if (!ep) return `${base}/chat/completions`
+  if (ep.startsWith('http://') || ep.startsWith('https://')) return ep
+  if (ep.startsWith('/')) return `${base}${ep}`
+  return `${base}/${ep}`
+}
+
+function applyQueryApiKey(endpoint: string, keyName: string, apiKey: string): string {
+  if (!keyName) return endpoint
+  const url = new URL(endpoint)
+  if (!url.searchParams.has(keyName)) {
+    url.searchParams.set(keyName, apiKey)
+  }
+  return url.toString()
+}
+
+function parseRetryDelayToSeconds(input: string): number | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  const plain = Number(trimmed)
+  if (Number.isFinite(plain)) return Math.max(0, Math.ceil(plain))
+
+  const match = trimmed.match(/^([0-9]+(?:\.[0-9]+)?)s$/i)
+  if (!match) return null
+  const sec = Number(match[1])
+  if (!Number.isFinite(sec)) return null
+  return Math.max(0, Math.ceil(sec))
+}
+
+function summarizeProviderError(statusCode: number, rawText: string): string {
+  let message = rawText
+  let retryAfterSec: number | null = null
+
+  try {
+    const parsed = JSON.parse(rawText) as any
+    const root = Array.isArray(parsed) ? parsed[0] : parsed
+    const errorObj = root?.error
+
+    if (typeof errorObj?.message === 'string' && errorObj.message.trim()) {
+      message = errorObj.message.trim()
+    }
+
+    const details = Array.isArray(errorObj?.details) ? errorObj.details : []
+    for (const detail of details) {
+      if (typeof detail?.retryDelay === 'string') {
+        const parsedDelay = parseRetryDelayToSeconds(detail.retryDelay)
+        if (parsedDelay !== null) {
+          retryAfterSec = parsedDelay
+          break
+        }
+      }
+    }
+  } catch {
+    // Keep raw response text when provider does not return JSON.
+  }
+
+  if (statusCode === 429) {
+    const retry = retryAfterSec !== null ? ` Retry after about ${retryAfterSec}s.` : ''
+    return `Quota/rate limit exceeded.${retry} Check provider quota, billing, and key permissions.`
+  }
+
+  if (statusCode === 404 && message.toLowerCase().includes('model')) {
+    return `Model not found or not available on this endpoint/version. Check provider.model and provider.baseUrl/provider.endpoint.`
+  }
+
+  return message
+}
+
 function historyToOpenAIMessages(history: Message[]): OpenAIMessage[] {
   const out: OpenAIMessage[] = []
 
@@ -63,7 +144,11 @@ function historyToOpenAIMessages(history: Message[]): OpenAIMessage[] {
 }
 
 async function createCompletion(messages: OpenAIMessage[], signal?: AbortSignal) {
-  const { apiKey, baseUrl, model } = loadConfig()
+  const { provider } = loadConfig()
+  const providerName = inferProviderName(provider.baseUrl)
+
+  let endpoint = resolveEndpoint(provider.baseUrl, provider.endpoint)
+  endpoint = applyQueryApiKey(endpoint, provider.apiKeyQueryParam, provider.apiKey)
 
   const tools = TOOL_DEFINITIONS.map(tool => ({
     type: 'function' as const,
@@ -74,28 +159,38 @@ async function createCompletion(messages: OpenAIMessage[], signal?: AbortSignal)
     },
   }))
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...provider.extraHeaders,
+  }
+
+  if (!provider.apiKeyQueryParam && provider.apiKeyHeader) {
+    headers[provider.apiKeyHeader] = `${provider.apiKeyPrefix}${provider.apiKey}`
+  }
+
+  const body: Record<string, unknown> = {
+    model: provider.model,
+    messages,
+    tools,
+    tool_choice: 'auto',
+    ...provider.extraBody,
+  }
+  body[provider.maxTokensParam] = provider.maxTokens
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     signal,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 4096,
-      messages,
-      tools,
-      tool_choice: 'auto',
-    }),
+    headers,
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(`Kimi API ${response.status}: ${text}`)
+    const summary = summarizeProviderError(response.status, text)
+    throw new Error(`${providerName} ${response.status}: ${summary}`)
   }
 
-  const data = await response.json() as {
+  const data = (await response.json()) as {
     choices?: Array<{
       message?: {
         content?: string | null
@@ -106,7 +201,7 @@ async function createCompletion(messages: OpenAIMessage[], signal?: AbortSignal)
   }
 
   const message = data.choices?.[0]?.message
-  if (!message) throw new Error('Kimi API returned no choices')
+  if (!message) throw new Error(`${providerName} returned no choices`)
   return message
 }
 
